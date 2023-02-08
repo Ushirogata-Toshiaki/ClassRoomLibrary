@@ -3,138 +3,63 @@ type CourseWork = GoogleAppsScript.Classroom.Schema.CourseWork;
 type StudentSubmission = GoogleAppsScript.Classroom.Schema.StudentSubmission;
 type Student = GoogleAppsScript.Classroom.Schema.Student;
 
-function update(courseId, property){
-    const course = Classroom.Courses.get(courseId);
-    const studentlist = getStudentList(courseId);
-    const courseWorkList = getCourseWorkList(courseId);
-    const workList = {};
-    const statesList = {};
-    const studentDictionary = {};
-    const students = [];
-    for(const student of studentlist){
-      const address = student.profile.emailAddress.split('@')[0];
-      studentDictionary[student.userId] = address;
-      students.push([address,student.profile.name.fullName]);
-      statesList[address] = {};
-    }
-  
-    const courseDictionary = {
-      'id' : course.alternateLink.split('/')[4] //URLのID部分を取得
-    };
-  
-    let workNumber = 0;
-    for(const work of courseWorkList){
-      const courseWorkStatusList = getCourseWorkStatusList(courseId, work.id); //課題データを取得
-      courseDictionary[work.title] = workNumber; //課題名と番号を紐づけ
-  
-      //各情報を取得
-      let dueDate = work.dueDate;
-      if(dueDate){
-        dueDate = Utilities.formatDate(new Date(dueDate.year,dueDate.month,dueDate.day), 'JST', 'yyyy-MM-dd');
-      }
-      let topic = Classroom.Courses.Topics.get(courseId,work.topicId);
-      if(topic){
-        topic = topic.name;
-      }
-      const submissionCount = countSubmission(courseWorkStatusList); //提出数,採点数をカウント
-      workList[workNumber.toString()] = {
-        'link' : work.alternateLink.split('/')[6],
-        'topic' : topic,
-        'point' : work.maxPoints,
-        'due' : dueDate,
-        'sub' : submissionCount.submission,
-        'nsub' : submissionCount.not_submission,
-        'grade' : submissionCount.grade,
-        'ngrade' : submissionCount.not_grade
-      };
-  
-      for(const states of courseWorkStatusList){
-        let submission = 0;
-        let grade = 0;
-        if(states.state == 'RETURNED'){
-          submission = 1;
-          grade = 1;
-        }
-        if(states.state == 'TURNED_IN'){
-          submission = 1;
-        }
-        const isLate = checkLate(work, states);
-        const file = getFileByExtension(states);
-        statesList[studentDictionary[states.userId]][workNumber.toString()]= {
-          'point' : states.assignedGrade,
-          'sub' : submission,
-          'grade' : grade,
-          'due' : isLate,
-          'plus' : file
-        };
-      }
-      workNumber++;
-    }
-  }
   
   //課題の提出、未提出を更新
-  function countSubmission(courseWorkStatusList){
-    const counts = {
-     'submission' : 0,
-     'not_submission' : 0,
-     'grade' : 0,
-     'not_grade' : 0
-    };
+  function countSubmission(submissionList : StudentSubmission[]) : [number,number,number,number]{
+    let submit : number = 0; //提出
+    let not_submit : number = 0; //未提出
+    let grade : number = 0; //採点済
+    let not_grade : number = 0; //未採点
   
-    for(const states of courseWorkStatusList){
+    for(const states of submissionList){
       switch(states.state){
         case 'NEW':
-        counts.not_submission++;
+        not_submit++;
         break;
   
         case 'CREATED':
-        counts.not_submission;
+        not_submit;
         break;
   
         case 'TURNED_IN':
-        counts.submission++;
+        submit++;
         break;
   
         case 'RETURNED':
-        counts.submission++;
-        counts.grade++;
+        submit++;
+        grade++;
         break;
   
         case 'RECLAIMED_BY_STUDENT':
-        counts.not_submission++;
+        not_submit++;
         break;
       }
     }
-    counts.not_grade = counts.submission - counts.grade;
-    return counts;
+    not_grade = submit - grade;
+    return [submit, not_submit, grade, not_grade];
   }
   
-  //期限内の提出かをチェック
+  //期限遅れチェック
   function isLate(courseWork, submission : StudentSubmission) : boolean{
     if(courseWork.dueDate){
       const dueDay : Date = new Date(courseWork.dueDate["year"],courseWork.dueDate["month"] - 1,courseWork.dueDate["day"],23,59,59);
-      let turned : GoogleAppsScript.Classroom.Schema.StateHistory | undefined = undefined;
       const historys = submission.submissionHistory;
       if(historys){
         for(var history of historys){
-          if(history.stateHistory){
-            if(history.stateHistory.state == "TURNED_IN"){
-              turned = history.stateHistory;
+          if(history?.stateHistory?.state == "TURNED_IN"){
+            const turned : GoogleAppsScript.Classroom.Schema.StateHistory = history.stateHistory;
+            const turnedDay : Date = new Date(turned.stateTimestamp ?? '2030-01-01');
+            if(dueDay.getTime() < turnedDay.getTime()){
+              return true;
             }
-          }
-        }
-        if(turned != undefined){     
-          const turnedDay = new Date(turned.stateTimestamp ?? '2030-01-01');
-          if(dueDay.getTime() < turnedDay.getTime()){
-            return true;
           }
         }
       }
     }
-    return submission.late;
+    return submission.late? true : false;
   }
   
-  //mdファイルを取得
+  //検索ワードに一致ファイルを取得
   function getFileByExtension(submission : StudentSubmission, extensionRegExp : RegExp) : string | undefined{
     const attachments : GoogleAppsScript.Classroom.Schema.Attachment[] | undefined = submission?.assignmentSubmission?.attachments;
     if(attachments){
@@ -149,10 +74,6 @@ function update(courseId, property){
     }
   }
   
-  
-  
-
-  
   //生徒の課題に対するステータスを取得
   function getCourseWorkStatusList(courseId : string, courseWorkId : string) : StudentSubmission[]{
     let pageToken : any;
@@ -166,14 +87,19 @@ function update(courseId, property){
   }
   
   //クラスルームの全生徒を取得
-  function getStudentList(courseId : string) : Student[] {
+  function getStudentList(courseId : string) : [string []] {
     let pageToken : any;
-    let studentList : Student[] = [];
+    let students : Student[] = [];
     do{
         const response : GoogleAppsScript.Classroom.Schema.ListStudentsResponse = Classroom.Courses!.Students!.list(courseId,{pageToken: pageToken});
-        studentList = studentList.concat(response.students ?? []);
+        students = students.concat(response.students ?? []);
         pageToken = response.nextPageToken;
     }while(pageToken); 
+
+    const studentList : [string []] = [[]];
+    students.forEach((student : Student) => {
+      studentList.push([student?.profile?.emailAddress ?? '',student.profile?.name?.fullName ?? '',student.userId ?? '']);
+    });
     //クラス_ナマエ順でソート
     studentList.sort((a, b) => {
     if (a[1] > b[1]) {
