@@ -2,58 +2,94 @@ type Course = GoogleAppsScript.Classroom.Schema.Course;
 type CourseWork = GoogleAppsScript.Classroom.Schema.CourseWork;
 type StudentSubmission = GoogleAppsScript.Classroom.Schema.StudentSubmission;
 type Student = GoogleAppsScript.Classroom.Schema.Student;
+type SubmissiontInfo = {
+  'submissionDate': Date | undefined,
+  'isLate': boolean
+}
+type SubmitCount = {
+  'submit': number, //提出
+  'not_submit': number, //未提出
+  'grade': number,//採点済
+  'not_grade': number, //未採点
+}
+type StudentReslut = {
+  'studentId': string  ,
+  'name': string,
+  'id': string,
+  'point': number | undefined,
+  'submissionInfo': SubmissiontInfo;
+}
+type CourseWorkResult = {
+  'title': string,
+  'id': string,
+  'url': string,
+  'topic': string | undefined,
+  'due': Date | undefined,
+  'maxPoint': number | undefined,
+  'submitCount': SubmitCount,
+  'studentReslut': StudentReslut[],
+}
 
   //各課題のステータスをまとめたオブジェクトを作成
-  function courseWorkDataList(courseId: string){
-    const courseWorkDataList:Array<object> = [];
+  function courseWorkReslutList(courseId: string): CourseWorkResult[]{
+    const courseWorkDataList: CourseWorkResult[] = [];
     const studentList: [string[]] = getStudentList(courseId);
     const courseWorkList: CourseWork[] = getCourseWorkList(courseId);
     if(courseWorkList == undefined){
       console.log('CourseWork is undifind');
-      return;
     }
-    courseWorkList.forEach((coruseWork : CourseWork) =>{
-      const coruseWorkData: object = {
-        'title': undefined,
-        'id': undefined,
-        'url': undefined,
-        'topic': undefined,
-        'due': undefined,
-        'maxPoint': undefined,
-        'submitCount': undefined,
-        'studentStatus': [],
+    courseWorkList.forEach((courseWork : CourseWork) =>{
+      const coruseWorkResult: CourseWorkResult = {
+        title: "",
+        id: "",
+        url: "",
+        topic: "",
+        due: undefined,
+        maxPoint: 0,
+        submitCount: {
+          submit: 0,
+          not_submit: 0,
+          grade: 0,
+          not_grade: 0
+        },
+        studentReslut: []
       };
-      const submissionList: StudentSubmission[] = getStudentSubmisisonList(courseId, coruseWork.id!);
-      coruseWorkData['title'] = coruseWork.title;
-      coruseWorkData['id'] = coruseWork.id;
-      coruseWorkData['url'] = coruseWork.alternateLink;
-      coruseWorkData['topic'] = Classroom.Courses!.Topics!.get(courseId,coruseWork.topicId!).name ?? undefined;
-      coruseWorkData['due'] = coruseWork.dueDate;
-      coruseWorkData['maxPoint'] = coruseWork.maxPoints;
-      coruseWorkData['submitCount'] = getSubmitCount(submissionList);
+      const submissionList: StudentSubmission[] = getStudentSubmisisonList(courseId, courseWork.id!);
+      coruseWorkResult.title = courseWork.title!;
+      coruseWorkResult.id = courseWork.id!;
+      coruseWorkResult.url = courseWork.alternateLink!;
+      coruseWorkResult.topic = Classroom.Courses!.Topics!.get(courseId,courseWork.topicId!).name ?? undefined;
+      if(courseWork.dueDate != undefined){
+        const dueDay: Date = new Date(courseWork.dueDate["year"]!,courseWork.dueDate["month"]! - 1,courseWork.dueDate["day"]!);
+        dueDay.setHours(courseWork.dueTime?.hours ?? 23);
+        dueDay.setMinutes(courseWork.dueTime?.minutes ?? 59);
+        coruseWorkResult.due = dueDay;
+      }
+      coruseWorkResult.maxPoint = courseWork.maxPoints ?? undefined;
+      coruseWorkResult['submitCount'] = getSubmitCount(submissionList);
       submissionList.forEach((submission: StudentSubmission) => {
       const student:string[][] = studentList.filter((row: string[]) =>{
         return row[2] == submission.userId;
        });
-        coruseWorkData['studentStatus'].push({
+        coruseWorkResult['studentReslut'].push({
           'studentId': student[0][0],
           'name': student[0][1],
           'id': student[0][2],
           'point': submission.assignedGrade,
-          'isLate': isLate(coruseWork,submission)});
+          'submissionInfo': checkLate(courseWork,submission)});
       });
-      courseWorkDataList.push(coruseWorkData);
+      courseWorkDataList.push(coruseWorkResult);
     });
     return courseWorkDataList;
   }
   
   //課題の提出、未提出を更新
-  function getSubmitCount(submissionList: StudentSubmission[]): object{
+  function getSubmitCount(submissionList: StudentSubmission[]): SubmitCount{
     let submit : number = 0; //提出
     let not_submit : number = 0; //未提出
     let grade : number = 0; //採点済
     let not_grade : number = 0; //未採点
-    const submitCount = {
+    const submitCount: SubmitCount = {
       'submit' : 0, //提出
       'not_submit' : 0, //未提出
       'grade' : 0,//採点済
@@ -89,22 +125,31 @@ type Student = GoogleAppsScript.Classroom.Schema.Student;
   }
   
   //期限遅れチェック
-  function isLate(courseWork: CourseWork, submission: StudentSubmission): boolean{
+  function checkLate(courseWork: CourseWork, submission: StudentSubmission): SubmissiontInfo {
+    const submissionInfo: SubmissiontInfo = {
+      'submissionDate': undefined,
+      'isLate': false
+    };
     if(courseWork.dueDate){
-      const dueDay: Date = new Date(courseWork.dueDate["year"]!,courseWork.dueDate["month"]! - 1,courseWork.dueDate["day"]!,23,59,59);
+      const dueDay: Date = new Date(courseWork.dueDate["year"]!,courseWork.dueDate["month"]! - 1,courseWork.dueDate["day"]!);
+      dueDay.setHours(courseWork.dueTime?.hours ?? 23);
+      dueDay.setMinutes(courseWork.dueTime?.minutes ?? 59);
       const historys: GoogleAppsScript.Classroom.Schema.SubmissionHistory[] | undefined = submission.submissionHistory;
       if(historys){
         for(var history of historys){
           if(history.stateHistory?.state == "TURNED_IN"){
-            const turnedDay: Date = new Date(history.stateHistory.stateTimestamp ?? '2000-01-01');
+            const turnedDay: Date = new Date(history.stateHistory.stateTimestamp!);
+            submissionInfo.submissionDate = turnedDay;
             if(dueDay.getTime() < turnedDay.getTime()){
-              return true;
+              submissionInfo.isLate = true;
+              return submissionInfo;
             }
           }
         }
       }
     }
-    return submission.late? true : false;
+    submissionInfo.isLate = submission.late? true : false;
+    return submissionInfo;
   }
   
   //検索ワードに一致ファイルを取得
