@@ -1,36 +1,4 @@
-type Course = GoogleAppsScript.Classroom.Schema.Course;
-type CourseWork = GoogleAppsScript.Classroom.Schema.CourseWork;
-type StudentSubmission = GoogleAppsScript.Classroom.Schema.StudentSubmission;
-type Student = GoogleAppsScript.Classroom.Schema.Student;
-type SubmissiontInfo = {
-  'submissionDate': Date | undefined,
-  'isLate': boolean
-}
-type SubmitCount = {
-  'submit': number, //提出
-  'not_submit': number, //未提出
-  'grade': number,//採点済
-  'not_grade': number, //未採点
-}
-type StudentReslut = {
-  'studentId': string  ,
-  'name': string,
-  'id': string,
-  'point': number | undefined,
-  'submissionInfo': SubmissiontInfo;
-}
-type CourseWorkResult = {
-  'title': string,
-  'id': string,
-  'url': string,
-  'topic': string | undefined,
-  'due': Date | undefined,
-  'maxPoint': number | undefined,
-  'submitCount': SubmitCount,
-  'studentReslut': StudentReslut[],
-}
-
-  //各課題のステータスをまとめたオブジェクトを作成
+//各課題のステータスをまとめたオブジェクトを作成
   function courseWorkReslutList(courseId: string): CourseWorkResult[]{
     const courseWorkDataList: CourseWorkResult[] = [];
     const studentList: [string[]] = getStudentList(courseId);
@@ -85,10 +53,6 @@ type CourseWorkResult = {
   
   //課題の提出、未提出を更新
   function getSubmitCount(submissionList: StudentSubmission[]): SubmitCount{
-    let submit : number = 0; //提出
-    let not_submit : number = 0; //未提出
-    let grade : number = 0; //採点済
-    let not_grade : number = 0; //未採点
     const submitCount: SubmitCount = {
       'submit' : 0, //提出
       'not_submit' : 0, //未提出
