@@ -39,12 +39,14 @@
       const student:string[][] = studentList.filter((row: string[]) =>{
         return row[2] == submission.userId;
        });
-        coruseWorkResult['studentReslut'].push({
-          'studentId': student[0][0],
-          'name': student[0][1],
-          'id': student[0][2],
-          'point': submission.assignedGrade,
-          'submissionInfo': checkLate(courseWork,submission)});
+       if(student.length > 0){
+          coruseWorkResult['studentReslut'].push({
+            'studentId': student[0][0],
+            'name': student[0][1],
+            'id': student[0][2],
+            'point': submission.assignedGrade,
+            'submissionInfo': checkLate(courseWork,submission)});
+        }
       });
       courseWorkDataList.push(coruseWorkResult);
     });
