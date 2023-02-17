@@ -17,7 +17,8 @@ type StudentReslut = {
   'name': string,
   'id': string,
   'point': number | undefined,
-  'submissionInfo': SubmissiontInfo;
+  'submissionInfo': SubmissiontInfo,
+  'attachments': GoogleAppsScript.Classroom.Schema.Attachment[] | undefined
 }
 type CourseWorkResult = {
   'title': string,
@@ -27,5 +28,5 @@ type CourseWorkResult = {
   'due': Date | undefined,
   'maxPoint': number | undefined,
   'submitCount': SubmitCount,
-  'studentReslut': StudentReslut[],
+  'studentReslut': StudentReslut[]
 }

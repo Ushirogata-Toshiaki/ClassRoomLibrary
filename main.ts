@@ -49,7 +49,8 @@
             'name': student[0][1],
             'id': student[0][2],
             'point': point,
-            'submissionInfo': checkLate(courseWork,submission)});
+            'submissionInfo': checkLate(courseWork,submission),            
+            'attachments': submission?.assignmentSubmission?.attachments});
         }
       });
       courseWorkDataList.push(coruseWorkResult);
@@ -123,9 +124,7 @@
   }
   
   //検索ワードに一致ファイルを取得
-  function getFileByExtension(submission: StudentSubmission, extensionRegExp: RegExp): string | undefined{
-    const attachments: GoogleAppsScript.Classroom.Schema.Attachment[] | undefined = submission?.assignmentSubmission?.attachments;
-    if(attachments){
+  function getFileByExtension(attachments: GoogleAppsScript.Classroom.Schema.Attachment[], extensionRegExp: RegExp): string | undefined{
       for(const attachment of attachments){
           const file: GoogleAppsScript.Classroom.Schema.DriveFile | undefined = attachment.driveFile;
           if(file){
@@ -135,7 +134,6 @@
               }
           }
       }
-    }
     console.log('file not found');
   }
   
@@ -150,7 +148,7 @@
     }while(pageToken);  
     return courseWorkStatusList;
   }
-  
+
   //クラスルームの全生徒を取得
   function getStudentList(courseId : string): [string []] {
     let pageToken: any;
